@@ -1,4 +1,5 @@
 import requests
+import re
 from bs4 import BeautifulSoup
 from datetime import datetime
 from datetime import date
@@ -23,16 +24,41 @@ def scrape_checkee_pages():
         with open('htmls/page_{}.html'.format(month), 'w', encoding='utf-8') as writer:
             writer.write(r.text)
 
+def norm_text(text):
+    text = re.sub(r'\r', ' #R# ', text)
+    text = re.sub(r'\n', ' #N# ', text)
+    text = re.sub(r'\s+', ' ', text)
+    text = text.strip()
+    return text
+
+def parse_all_htmls():
+    headers = ['Month', 'ID', 'VisaType', 'VisaEntry', 'USConsulate', 'Major', 'Status', 'CheckDate', 'CompleteDate', 'WaitingDays', 'DetailUrl', 'DetailText']
+    with open('result.tsv', 'w', encoding='utf-8') as writer:
+        writer.write('%s\n' % '\t'.join(headers))
+        for month in get_all_months(end_month=date(2019, 9, 1)):
+            html = 'htmls/page_{}.html'.format(month)
+            print('Processing %s...' % html)
+            all_data = parse_html(html)
+            for data in all_data:
+                items = []
+                for i, header in enumerate(headers):
+                    if i == 0:
+                        items.append(month)
+                    else:
+                        items.append(norm_text(data[header]))
+                writer.write('%s\n' % '\t'.join(items))
+
 def parse_html(input_html):
-    #doc = BeautifulSoup(input_html, 'html5lib')
-    doc = BeautifulSoup(input_html, 'html.parser')
-    #doc = BeautifulSoup(input_html, 'lxml')
+    reader = open(input_html, 'r', encoding='utf-8')
+    #doc = BeautifulSoup(reader, 'html5lib')
+    doc = BeautifulSoup(reader, 'html.parser')
+    #doc = BeautifulSoup(reader, 'lxml')
+    all_data = []
     for table in doc.find_all('table'):
         if not table.text.strip().startswith('Update'):
             continue
         idx = 0
         headers = []
-        all_data = []
         for tr in table.find_all('tr'):
             if not tr.text.strip().startswith('Update'):
                 continue
@@ -40,7 +66,7 @@ def parse_html(input_html):
             j = 0
             for td in tr.find_all('td'):
                 if idx == 0:
-                    headers.append(td.text)
+                    headers.append(re.sub(r'\W', '', td.text))
                 else:
                     #data[headers[j]] = str(td)
                     data[headers[j]] = td.text
@@ -61,10 +87,10 @@ def parse_html(input_html):
     return all_data
 
 def test():
-    #parse_html(open('tmp.txt', 'r', encoding='utf-8'))
     for month in get_all_months():
         print(month.strftime('%Y-%m'))
 
 if __name__ == '__main__':
     #scrape_checkee_pages()
-    test()
+    #test()
+    parse_all_htmls()
